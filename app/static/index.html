@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>btc-regime — Trạng thái rủi ro Bitcoin</title>
+<title>RiskonBTC — Trạng thái rủi ro Bitcoin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -121,7 +121,7 @@
 <body>
 <div class="wrap">
   <header class="site">
-    <h1>btc-regime</h1>
+    <h1>RiskonBTC</h1>
     <span class="sub">Trạng thái rủi ro Bitcoin theo ngày — mã nguồn mở</span>
   </header>
 
@@ -216,7 +216,7 @@
     </section>
 
     <footer>
-      <p>btc-regime là mô hình mã nguồn mở được tái tạo theo các mô tả công khai về
+      <p>RiskonBTC là mô hình mã nguồn mở được tái tạo theo các mô tả công khai về
          cách đọc trạng thái rủi ro của Bitcoin. Đây <strong>không phải</strong> sản phẩm
          của Glassnode hay Swissblock và không dùng thuật toán gốc của họ.</p>
       <p>Kết quả backtest trong quá khứ không đảm bảo hiệu quả trong tương lai.
@@ -295,7 +295,7 @@ function render(data){
 
   // Backtest table
   setText('bt-from', data.backtest.from);
-  const rows = [['Mô hình btc-regime', data.backtest.vector],
+  const rows = [['Mô hình RiskonBTC', data.backtest.vector],
                 ['Nắm giữ liên tục (buy & hold)', data.backtest.hold]];
   document.getElementById('bt-body').innerHTML = rows.map(([name, s]) =>
     `<tr><td>${name}</td><td class="num">${fmtPct(s.cagr)}</td>` +

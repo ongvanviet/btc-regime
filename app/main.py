@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="btc-regime", lifespan=lifespan)
+app = FastAPI(title="RiskonBTC", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
