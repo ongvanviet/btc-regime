@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: btc-regime
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: CACHE_TTL_SECONDS
+        value: "3600"

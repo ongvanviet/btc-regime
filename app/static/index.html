@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>btc-regime — Trạng thái rủi ro Bitcoin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#EEF1F4; --ink:#14202B; --muted:#5C6B7A; --line:#D5DBE1;
+    --s-off:#C8392B; --m-off:#D9932A; --m-on:#7BAF3A; --s-on:#1B7F4C;
+  }
+  *{box-sizing:border-box; margin:0}
+  html{font-size:16px}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"IBM Plex Sans", system-ui, sans-serif;
+    line-height:1.5; padding:2.5rem 1.25rem 4rem;
+  }
+  a{color:inherit}
+  :focus-visible{outline:3px solid var(--ink); outline-offset:2px}
+  .wrap{max-width:1040px; margin:0 auto}
+  header.site{display:flex; align-items:baseline; gap:.75rem; flex-wrap:wrap; margin-bottom:2.5rem}
+  header.site h1{font-size:1.05rem; font-weight:700; letter-spacing:.02em}
+  header.site .sub{color:var(--muted); font-size:.9rem}
+
+  /* ------- thông báo tải / lỗi ------- */
+  #status{border:1px solid var(--line); background:#fff; padding:1rem 1.25rem;
+          font-size:.95rem; margin-bottom:2rem}
+  #status.error{border-color:var(--s-off); color:var(--s-off)}
+  [hidden]{display:none !important}
+
+  /* ------- hero ------- */
+  .hero{margin-bottom:3rem}
+  .hero .kicker{font-size:.85rem; text-transform:uppercase; letter-spacing:.12em;
+                color:var(--muted); margin-bottom:.35rem}
+  .hero h2{font-size:clamp(2.6rem, 8vw, 5.2rem); font-weight:700; line-height:1.05;
+           letter-spacing:-.015em}
+  .hero .label{font-size:1.15rem; color:var(--muted); margin-top:.4rem}
+  .gauge{position:relative; margin-top:1.75rem}
+  .gauge .cells{display:grid; grid-template-columns:repeat(4,1fr); gap:4px}
+  .gauge .cell{height:2.6rem; display:flex; align-items:center; justify-content:center;
+               font-size:.8rem; font-weight:600; color:#fff; opacity:.28;
+               transition:opacity .25s}
+  .gauge .cell.active{opacity:1}
+  .gauge .needle{position:absolute; top:-8px; bottom:-8px; width:3px; background:var(--ink);
+                 transform:translateX(-50%)}
+  .gauge .needle::after{content:""; position:absolute; top:-6px; left:50%;
+    transform:translateX(-50%); border:6px solid transparent; border-top-color:var(--ink)}
+  .gauge .scale{display:flex; justify-content:space-between; color:var(--muted);
+                font-size:.75rem; margin-top:.4rem}
+
+  /* ------- panels ------- */
+  .panels{display:grid; grid-template-columns:1fr 1fr; gap:2rem; margin-bottom:3rem}
+  .panel h3{font-size:.85rem; text-transform:uppercase; letter-spacing:.12em;
+            color:var(--muted); margin-bottom:1rem; padding-bottom:.5rem;
+            border-bottom:1px solid var(--line)}
+  .allocbar{display:flex; height:2.2rem; border:1px solid var(--line); overflow:hidden}
+  .allocbar .btc{background:var(--ink); color:#fff; display:flex; align-items:center;
+                 padding:0 .6rem; font-size:.85rem; font-weight:600; white-space:nowrap;
+                 min-width:max-content}
+  .allocbar .cash{background:#fff; color:var(--muted); display:flex; align-items:center;
+                  justify-content:flex-end; padding:0 .6rem; font-size:.85rem;
+                  white-space:nowrap; min-width:max-content}
+  dl.facts{margin-top:1.25rem}
+  dl.facts div{display:flex; justify-content:space-between; gap:1rem;
+               padding:.45rem 0; border-bottom:1px dashed var(--line); font-size:.95rem}
+  dl.facts dt{color:var(--muted)}
+  dl.facts dd{font-weight:600; font-variant-numeric:tabular-nums}
+
+  .scorebar{margin-bottom:1rem}
+  .scorebar .head{display:flex; justify-content:space-between; font-size:.9rem;
+                  margin-bottom:.3rem}
+  .scorebar .head .val{font-weight:600; font-variant-numeric:tabular-nums}
+  .track{position:relative; height:.9rem; background:#fff; border:1px solid var(--line)}
+  .track::before{content:""; position:absolute; left:50%; top:-3px; bottom:-3px;
+                 width:1px; background:var(--muted)}
+  .track .fill{position:absolute; top:0; bottom:0}
+  .track .fill.pos{left:50%; background:var(--s-on)}
+  .track .fill.neg{right:50%; background:var(--s-off)}
+  .score-total{display:flex; justify-content:space-between; border-top:2px solid var(--ink);
+               padding-top:.6rem; margin-top:1.2rem; font-weight:700}
+
+  /* ------- sections / charts ------- */
+  section.block{margin-bottom:3rem}
+  section.block>h3{font-size:1.05rem; font-weight:700; margin-bottom:.35rem}
+  section.block>.note{color:var(--muted); font-size:.9rem; margin-bottom:1rem}
+  .chartbox{border:1px solid var(--line); background:#fff; padding:1rem; height:380px;
+            position:relative}
+  .chartbox .fallback{color:var(--muted); font-size:.95rem; padding:1rem}
+
+  table{width:100%; border-collapse:collapse; font-size:.95rem; background:#fff;
+        border:1px solid var(--line)}
+  th,td{text-align:left; padding:.55rem .8rem; border-bottom:1px solid var(--line)}
+  th{font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+  td.num{font-variant-numeric:tabular-nums}
+  .risk-on{color:var(--s-on); font-weight:600}
+  .risk-off{color:var(--s-off); font-weight:600}
+  .tablewrap{overflow-x:auto}
+
+  footer{border-top:1px solid var(--line); padding-top:1.5rem; color:var(--muted);
+         font-size:.85rem}
+  footer p{margin-bottom:.75rem; max-width:70ch}
+  button#reload{font:inherit; font-weight:600; padding:.55rem 1.1rem; cursor:pointer;
+    background:var(--ink); color:#fff; border:none}
+  button#reload:hover{opacity:.85}
+
+  @media (max-width:720px){
+    .panels{grid-template-columns:1fr}
+    .chartbox{height:300px}
+    body{padding:1.5rem 1rem 3rem}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important; animation:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <h1>btc-regime</h1>
+    <span class="sub">Trạng thái rủi ro Bitcoin theo ngày — mã nguồn mở</span>
+  </header>
+
+  <div id="status" role="status">Đang tải dữ liệu mô hình… Nếu server vừa khởi động,
+    lần tính đầu tiên có thể mất 10–30 giây.</div>
+
+  <main id="content" hidden>
+    <!-- HERO -->
+    <section class="hero">
+      <p class="kicker">Hôm nay, <span id="asof"></span></p>
+      <h2 id="state-name"></h2>
+      <p class="label"><span id="state-label"></span> · <span id="state-risk"></span>
+         · từ ngày <span id="since"></span> (<span id="since-days"></span> ngày)</p>
+      <div class="gauge" aria-label="Thang 4 trạng thái rủi ro">
+        <div class="cells">
+          <div class="cell" data-code="-2" style="background:var(--s-off)">Strong-Off</div>
+          <div class="cell" data-code="-1" style="background:var(--m-off)">Mild-Off</div>
+          <div class="cell" data-code="1"  style="background:var(--m-on)">Mild-On</div>
+          <div class="cell" data-code="2"  style="background:var(--s-on)">Strong-On</div>
+        </div>
+        <div class="needle" id="needle" style="left:50%"></div>
+        <div class="scale"><span>−3</span><span>0</span><span>+3</span></div>
+      </div>
+    </section>
+
+    <!-- PANELS -->
+    <div class="panels">
+      <section class="panel">
+        <h3>Phân bổ đề xuất của mô hình</h3>
+        <div class="allocbar" aria-label="Tỷ lệ BTC và tiền mặt">
+          <div class="btc" id="alloc-btc"></div>
+          <div class="cash" id="alloc-cash"></div>
+        </div>
+        <dl class="facts">
+          <div><dt>Giá BTC</dt><dd id="price"></dd></div>
+          <div><dt>Trạng thái từ ngày</dt><dd id="since2"></dd></div>
+          <div><dt>Mayer multiple (giá / SMA200)</dt><dd id="mayer"></dd></div>
+          <div><dt>Vol ratio (7 ngày / 90 ngày)</dt><dd id="volratio"></dd></div>
+        </dl>
+      </section>
+      <section class="panel">
+        <h3>Điểm số theo 3 khung thời gian</h3>
+        <div class="scorebar">
+          <div class="head"><span>Dài hạn — cấu trúc xu hướng</span><span class="val" id="v-long"></span></div>
+          <div class="track" id="t-long"></div>
+        </div>
+        <div class="scorebar">
+          <div class="head"><span>Trung hạn — momentum</span><span class="val" id="v-mid"></span></div>
+          <div class="track" id="t-mid"></div>
+        </div>
+        <div class="scorebar">
+          <div class="head"><span>Ngắn hạn — sốc biến động</span><span class="val" id="v-short"></span></div>
+          <div class="track" id="t-short"></div>
+        </div>
+        <div class="score-total"><span>Điểm tổng hợp</span><span id="v-total"></span></div>
+      </section>
+    </div>
+
+    <!-- PRICE CHART -->
+    <section class="block">
+      <h3>Giá BTC 4 năm, tô màu theo trạng thái</h3>
+      <p class="note">Trục giá log. Mỗi đoạn đường mang màu của trạng thái ngày hôm đó.</p>
+      <div class="chartbox"><canvas id="price-chart"></canvas></div>
+    </section>
+
+    <!-- EQUITY CHART -->
+    <section class="block">
+      <h3>Backtest: mô hình so với nắm giữ liên tục</h3>
+      <p class="note">Vốn chuẩn hoá về 1 ở đầu kỳ 4 năm; trục log. Tín hiệu áp dụng cho
+        ngày hôm sau, phí 0,1% mỗi lần đổi phân bổ. Số liệu bảng tính trên toàn bộ
+        lịch sử từ <span id="bt-from"></span>.</p>
+      <div class="chartbox"><canvas id="equity-chart"></canvas></div>
+      <div class="tablewrap" style="margin-top:1rem">
+        <table>
+          <thead><tr><th>Chiến lược</th><th>CAGR</th><th>Max drawdown</th>
+                     <th>Sharpe</th><th>Bội số vốn</th></tr></thead>
+          <tbody id="bt-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- INFLECTIONS -->
+    <section class="block">
+      <h3>Các điểm đảo chiều gần nhất</h3>
+      <p class="note">Thời điểm mô hình chuyển giữa Risk-On và Risk-Off (mới nhất trước).</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Ngày</th><th>Chuyển sang</th><th>Trạng thái</th><th>Giá BTC</th></tr></thead>
+          <tbody id="inf-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <p>btc-regime là mô hình mã nguồn mở được tái tạo theo các mô tả công khai về
+         cách đọc trạng thái rủi ro của Bitcoin. Đây <strong>không phải</strong> sản phẩm
+         của Glassnode hay Swissblock và không dùng thuật toán gốc của họ.</p>
+      <p>Kết quả backtest trong quá khứ không đảm bảo hiệu quả trong tương lai.
+         Toàn bộ nội dung chỉ nhằm mục đích nghiên cứu, <strong>không phải lời khuyên
+         đầu tư</strong>.</p>
+      <button id="reload" type="button">Tải lại dữ liệu</button>
+    </footer>
+  </main>
+</div>
+
+<script>
+"use strict";
+const COLORS = {"-2":"#C8392B","-1":"#D9932A","1":"#7BAF3A","2":"#1B7F4C"};
+const NAMES  = {"-2":"Strong-Off","-1":"Mild-Off","1":"Mild-On","2":"Strong-On"};
+const statusEl = document.getElementById('status');
+const content  = document.getElementById('content');
+let charts = [];
+
+const fmtUSD = v => v.toLocaleString('vi-VN', {maximumFractionDigits:0}) + ' USD';
+const fmtPct = v => (v*100).toFixed(1).replace('.', ',') + '%';
+const fmtNum = v => v.toFixed(2).replace('.', ',');
+
+function setText(id, text){ document.getElementById(id).textContent = text; }
+
+// Thanh điểm có tâm ở 0: âm tô đỏ về bên trái, dương tô xanh về bên phải
+function drawScoreBar(trackId, value, maxAbs){
+  const track = document.getElementById(trackId);
+  track.querySelectorAll('.fill').forEach(f => f.remove());
+  const fill = document.createElement('div');
+  const w = Math.min(Math.abs(value)/maxAbs, 1) * 50;
+  fill.className = 'fill ' + (value >= 0 ? 'pos' : 'neg');
+  fill.style.width = w + '%';
+  track.appendChild(fill);
+}
+
+function render(data){
+  const st = data.state;
+  setText('asof', data.as_of);
+  setText('state-name', st.name);
+  document.getElementById('state-name').style.color = COLORS[st.code];
+  setText('state-label', st.label);
+  const riskEl = document.getElementById('state-risk');
+  riskEl.textContent = st.risk;
+  riskEl.className = st.risk === 'Risk-On' ? 'risk-on' : 'risk-off';
+  setText('since', data.regime_since);
+  setText('since-days', data.regime_days);
+  setText('since2', data.regime_since);
+
+  // Thang 4 ô + kim theo điểm tổng (−3…+3)
+  document.querySelectorAll('.gauge .cell').forEach(c =>
+    c.classList.toggle('active', Number(c.dataset.code) === st.code));
+  const pos = Math.max(0, Math.min(1, (data.score.total + 3) / 6));
+  document.getElementById('needle').style.left = (pos*100).toFixed(1) + '%';
+
+  // Phân bổ
+  const btcPct = st.alloc;
+  const btcEl = document.getElementById('alloc-btc');
+  const cashEl = document.getElementById('alloc-cash');
+  btcEl.style.flexGrow = btcPct;
+  cashEl.style.flexGrow = 1 - btcPct;
+  btcEl.textContent = 'BTC ' + Math.round(btcPct*100) + '%';
+  cashEl.textContent = 'Tiền mặt ' + Math.round((1-btcPct)*100) + '%';
+
+  setText('price', fmtUSD(data.price));
+  setText('mayer', fmtNum(data.metrics.mayer));
+  setText('volratio', fmtNum(data.metrics.vol_ratio));
+
+  // Điểm 3 khung
+  setText('v-long',  data.score.long.toFixed(2));
+  setText('v-mid',   data.score.mid.toFixed(2));
+  setText('v-short', data.score.short.toFixed(2));
+  setText('v-total', data.score.total.toFixed(2));
+  drawScoreBar('t-long',  data.score.long,  1.5);
+  drawScoreBar('t-mid',   data.score.mid,   1.5);
+  drawScoreBar('t-short', data.score.short, 1.5);
+
+  // Backtest table
+  setText('bt-from', data.backtest.from);
+  const rows = [['Mô hình btc-regime', data.backtest.vector],
+                ['Nắm giữ liên tục (buy & hold)', data.backtest.hold]];
+  document.getElementById('bt-body').innerHTML = rows.map(([name, s]) =>
+    `<tr><td>${name}</td><td class="num">${fmtPct(s.cagr)}</td>` +
+    `<td class="num">${fmtPct(s.max_drawdown)}</td>` +
+    `<td class="num">${fmtNum(s.sharpe)}</td>` +
+    `<td class="num">×${fmtNum(s.multiple)}</td></tr>`).join('');
+
+  // Inflections
+  document.getElementById('inf-body').innerHTML = data.inflections.map(f =>
+    `<tr><td class="num">${f.date}</td>` +
+    `<td class="${f.risk==='Risk-On'?'risk-on':'risk-off'}">${f.risk}</td>` +
+    `<td>${f.state}</td><td class="num">${fmtUSD(f.price)}</td></tr>`).join('');
+
+  drawCharts(data.history);
+
+  statusEl.hidden = true;
+  content.hidden = false;
+}
+
+function chartFallback(canvasId, msg){
+  const box = document.getElementById(canvasId).parentElement;
+  box.innerHTML = '<p class="fallback">' + msg + '</p>';
+  box.style.height = 'auto';
+}
+
+function drawCharts(hist){
+  if (typeof Chart === 'undefined'){
+    const msg = 'Không tải được thư viện biểu đồ (Chart.js từ CDN có thể bị chặn ' +
+      'bởi ad-blocker hoặc mạng). Mọi số liệu phía trên vẫn đầy đủ và chính xác.';
+    chartFallback('price-chart', msg);
+    chartFallback('equity-chart', msg);
+    return;
+  }
+  charts.forEach(c => c.destroy());
+  charts = [];
+
+  const common = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: {mode: 'index', intersect: false},
+    scales: {
+      x: {ticks: {maxTicksLimit: 8, color:'#5C6B7A'}, grid: {color:'#EEF1F4'}},
+      y: {type: 'logarithmic', ticks: {color:'#5C6B7A'}, grid: {color:'#EEF1F4'}}
+    }
+  };
+
+  // Biểu đồ giá: màu từng đoạn theo trạng thái ngày đó
+  charts.push(new Chart(document.getElementById('price-chart'), {
+    type: 'line',
+    data: {labels: hist.dates, datasets: [{
+      data: hist.close, pointRadius: 0, borderWidth: 2, tension: 0,
+      segment: {borderColor: ctx => COLORS[String(hist.state[ctx.p1DataIndex])]}
+    }]},
+    options: {...common, plugins: {legend: {display:false}, tooltip: {callbacks: {
+      label: ctx => fmtUSD(ctx.parsed.y) + ' — ' +
+                    NAMES[String(hist.state[ctx.dataIndex])]
+    }}}}
+  }));
+
+  // Biểu đồ equity: mô hình vs buy & hold
+  charts.push(new Chart(document.getElementById('equity-chart'), {
+    type: 'line',
+    data: {labels: hist.dates, datasets: [
+      {label: 'Mô hình', data: hist.equity_strat, borderColor:'#14202B',
+       pointRadius:0, borderWidth:2, tension:0},
+      {label: 'Buy & hold', data: hist.equity_hold, borderColor:'#8A98A6',
+       pointRadius:0, borderWidth:2, borderDash:[5,4], tension:0}
+    ]},
+    options: {...common, plugins: {legend: {labels:{color:'#14202B'}}, tooltip: {
+      callbacks: {label: ctx => ctx.dataset.label + ': ×' + fmtNum(ctx.parsed.y)}
+    }}}
+  }));
+}
+
+async function load(){
+  statusEl.hidden = false;
+  statusEl.classList.remove('error');
+  statusEl.textContent = 'Đang tải dữ liệu mô hình… Nếu server vừa khởi động, ' +
+    'lần tính đầu tiên có thể mất 10–30 giây.';
+  try{
+    const res = await fetch('/api/full');
+    if (res.status === 503){
+      statusEl.textContent = 'Server đang tính dữ liệu lần đầu. Tự thử lại sau 5 giây…';
+      setTimeout(load, 5000);
+      return;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    render(await res.json());
+  }catch(e){
+    statusEl.classList.add('error');
+    statusEl.textContent = 'Không tải được dữ liệu (' + e.message + '). ' +
+      'Kiểm tra server có đang chạy không, rồi bấm "Tải lại dữ liệu" hoặc tải lại trang.';
+    content.hidden = true;
+  }
+}
+
+document.getElementById('reload').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>
