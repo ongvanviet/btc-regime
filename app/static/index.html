@@ -4,14 +4,43 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RiskonBTC — Trạng thái rủi ro Bitcoin</title>
+<meta name="description" content="Mô hình mã nguồn mở đọc trạng thái rủi ro (Risk-On / Risk-Off) của Bitcoin mỗi ngày: phân bổ đề xuất, điểm số 5 thành phần, backtest so với buy & hold.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#EEF1F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101820" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:title" content="RiskonBTC — Trạng thái rủi ro Bitcoin theo ngày">
+<meta property="og:description" content="Risk-On hay Risk-Off? Mô hình 4 trạng thái với phân bổ BTC đề xuất, cập nhật mỗi ngày.">
+<meta property="og:site_name" content="RiskonBTC">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="RiskonBTC — Trạng thái rủi ro Bitcoin theo ngày">
+<meta name="twitter:description" content="Risk-On hay Risk-Off? Mô hình 4 trạng thái với phân bổ BTC đề xuất, cập nhật mỗi ngày.">
+<meta name="twitter:site" content="@ongvan_viet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2314202B'/%3E%3Crect x='8' y='36' width='11' height='18' fill='%23C8392B'/%3E%3Crect x='21' y='28' width='11' height='26' fill='%23D9932A'/%3E%3Crect x='34' y='20' width='11' height='34' fill='%237BAF3A'/%3E%3Crect x='47' y='10' width='11' height='44' fill='%231B7F4C'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
   :root{
-    --bg:#EEF1F4; --ink:#14202B; --muted:#5C6B7A; --line:#D5DBE1;
+    --bg:#EEF1F4; --panel:#FFFFFF; --ink:#14202B; --muted:#5C6B7A; --line:#D5DBE1;
+    --grid:#E6EAEE; --soft:#F5F7F9;
     --s-off:#C8392B; --m-off:#D9932A; --m-on:#7BAF3A; --s-on:#1B7F4C;
+    --hold:#8A98A6; --accent:#14202B; --accent-ink:#FFFFFF;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#101820; --panel:#18232D; --ink:#E8EDF2; --muted:#9AA8B5; --line:#2C3A47;
+      --grid:#22303C; --soft:#1F2B36;
+      --s-off:#E0574A; --m-off:#E4A23F; --m-on:#8FC44C; --s-on:#2E9E62;
+      --hold:#7F8D9B; --accent:#E8EDF2; --accent-ink:#101820;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#101820; --panel:#18232D; --ink:#E8EDF2; --muted:#9AA8B5; --line:#2C3A47;
+    --grid:#22303C; --soft:#1F2B36;
+    --s-off:#E0574A; --m-off:#E4A23F; --m-on:#8FC44C; --s-on:#2E9E62;
+    --hold:#7F8D9B; --accent:#E8EDF2; --accent-ink:#101820;
   }
   *{box-sizing:border-box; margin:0}
   html{font-size:16px}
@@ -25,91 +54,112 @@
   .wrap{max-width:1040px; margin:0 auto}
   header.site{display:flex; align-items:baseline; gap:.75rem; flex-wrap:wrap; margin-bottom:2.5rem}
   header.site h1{font-size:1.05rem; font-weight:700; letter-spacing:.02em}
-  header.site .sub{color:var(--muted); font-size:.9rem}
+  header.site .sub{color:var(--muted); font-size:.9rem; flex:1}
+  .btn{font:inherit; font-weight:600; padding:.5rem 1rem; cursor:pointer; border:1px solid var(--line);
+       background:var(--panel); color:var(--ink); border-radius:0}
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+  .btn:hover{opacity:.85}
+  .btn.small{padding:.3rem .7rem; font-size:.85rem; font-weight:500}
+  .btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
 
-  /* ------- thông báo tải / lỗi ------- */
-  #status{border:1px solid var(--line); background:#fff; padding:1rem 1.25rem;
+  #status{border:1px solid var(--line); background:var(--panel); padding:1rem 1.25rem;
           font-size:.95rem; margin-bottom:2rem}
   #status.error{border-color:var(--s-off); color:var(--s-off)}
   [hidden]{display:none !important}
 
   /* ------- hero ------- */
-  .hero{margin-bottom:3rem}
-  .hero .kicker{font-size:.85rem; text-transform:uppercase; letter-spacing:.12em;
-                color:var(--muted); margin-bottom:.35rem}
-  .hero h2{font-size:clamp(2.6rem, 8vw, 5.2rem); font-weight:700; line-height:1.05;
-           letter-spacing:-.015em}
-  .hero .label{font-size:1.15rem; color:var(--muted); margin-top:.4rem}
-  .gauge{position:relative; margin-top:1.75rem}
-  .gauge .cells{display:grid; grid-template-columns:repeat(4,1fr); gap:4px}
-  .gauge .cell{height:2.6rem; display:flex; align-items:center; justify-content:center;
-               font-size:.8rem; font-weight:600; color:#fff; opacity:.28;
-               transition:opacity .25s}
+  .hero{margin-bottom:2rem}
+  .hero .kicker{font-size:.85rem; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-bottom:.4rem}
+  .hero h2{font-size:clamp(2.4rem, 7vw, 4rem); line-height:1.05; font-weight:700; letter-spacing:-.01em}
+  .hero .label{font-size:1.15rem; color:var(--muted); margin:.5rem 0 1.5rem}
+  .gauge{position:relative; height:52px; margin-bottom:.5rem}
+  .gauge .cells{display:grid; grid-template-columns:repeat(4,1fr); gap:3px; height:100%}
+  .gauge .cell{display:flex; align-items:center; justify-content:center; color:#fff; font-size:.8rem;
+               font-weight:600; opacity:.35; letter-spacing:.03em}
   .gauge .cell.active{opacity:1}
-  .gauge .needle{position:absolute; top:-8px; bottom:-8px; width:3px; background:var(--ink);
-                 transform:translateX(-50%)}
-  .gauge .needle::after{content:""; position:absolute; top:-6px; left:50%;
-    transform:translateX(-50%); border:6px solid transparent; border-top-color:var(--ink)}
-  .gauge .scale{display:flex; justify-content:space-between; color:var(--muted);
-                font-size:.75rem; margin-top:.4rem}
+  .gauge .needle{position:absolute; top:-8px; width:3px; height:68px; background:var(--ink); transform:translateX(-50%);
+                 transition:left .4s ease}
+  .gauge .scale{display:flex; justify-content:space-between; font-size:.75rem; color:var(--muted); margin-top:.35rem}
+  .meta-line{font-size:.85rem; color:var(--muted); margin-top:1rem}
+  .meta-line .warn{color:var(--m-off); font-weight:600}
+
+  /* ------- intraday ------- */
+  .intraday{border:1px dashed var(--line); background:var(--soft); padding:.9rem 1.1rem; margin-top:1.25rem;
+            font-size:.92rem; display:flex; gap:1rem; flex-wrap:wrap; align-items:center}
+  .intraday .tag{font-size:.72rem; text-transform:uppercase; letter-spacing:.1em; font-weight:700;
+                 padding:.2rem .5rem; border:1px solid var(--line); color:var(--muted)}
+  .intraday.differs{border-color:var(--m-off)}
+  .intraday.differs .tag{border-color:var(--m-off); color:var(--m-off)}
+  .intraday b{font-weight:600}
 
   /* ------- panels ------- */
-  .panels{display:grid; grid-template-columns:1fr 1fr; gap:2rem; margin-bottom:3rem}
-  .panel h3{font-size:.85rem; text-transform:uppercase; letter-spacing:.12em;
-            color:var(--muted); margin-bottom:1rem; padding-bottom:.5rem;
-            border-bottom:1px solid var(--line)}
-  .allocbar{display:flex; height:2.2rem; border:1px solid var(--line); overflow:hidden}
-  .allocbar .btc{background:var(--ink); color:#fff; display:flex; align-items:center;
-                 padding:0 .6rem; font-size:.85rem; font-weight:600; white-space:nowrap;
-                 min-width:max-content}
-  .allocbar .cash{background:#fff; color:var(--muted); display:flex; align-items:center;
-                  justify-content:flex-end; padding:0 .6rem; font-size:.85rem;
-                  white-space:nowrap; min-width:max-content}
-  dl.facts{margin-top:1.25rem}
-  dl.facts div{display:flex; justify-content:space-between; gap:1rem;
-               padding:.45rem 0; border-bottom:1px dashed var(--line); font-size:.95rem}
-  dl.facts dt{color:var(--muted)}
+  .panels{display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:2rem}
+  .panel{background:var(--panel); border:1px solid var(--line); padding:1.25rem 1.5rem}
+  .panel h3, .block h3{font-size:.8rem; text-transform:uppercase; letter-spacing:.1em; color:var(--muted);
+                        font-weight:600; margin-bottom:1rem}
+  .allocbar{display:flex; height:36px; margin-bottom:1rem; font-size:.85rem; font-weight:600; color:#fff}
+  .allocbar .btc{background:var(--s-on); display:flex; align-items:center; padding-left:.6rem; overflow:hidden; white-space:nowrap}
+  .allocbar .cash{background:var(--hold); display:flex; align-items:center; justify-content:flex-end; padding-right:.6rem; overflow:hidden; white-space:nowrap}
+  dl.facts{display:grid; grid-template-columns:1fr 1fr; gap:.6rem 1rem; font-size:.92rem}
+  dl.facts dt{color:var(--muted); font-size:.8rem}
   dl.facts dd{font-weight:600; font-variant-numeric:tabular-nums}
 
-  .scorebar{margin-bottom:1rem}
-  .scorebar .head{display:flex; justify-content:space-between; font-size:.9rem;
-                  margin-bottom:.3rem}
-  .scorebar .head .val{font-weight:600; font-variant-numeric:tabular-nums}
-  .track{position:relative; height:.9rem; background:#fff; border:1px solid var(--line)}
-  .track::before{content:""; position:absolute; left:50%; top:-3px; bottom:-3px;
-                 width:1px; background:var(--muted)}
-  .track .fill{position:absolute; top:0; bottom:0}
-  .track .fill.pos{left:50%; background:var(--s-on)}
-  .track .fill.neg{right:50%; background:var(--s-off)}
-  .score-total{display:flex; justify-content:space-between; border-top:2px solid var(--ink);
-               padding-top:.6rem; margin-top:1.2rem; font-weight:700}
+  .scorebar{margin-bottom:.8rem}
+  .scorebar .head{display:flex; justify-content:space-between; font-size:.88rem; margin-bottom:.25rem}
+  .scorebar .head .w{color:var(--muted); font-size:.78rem; margin-left:.4rem}
+  .scorebar .val{font-variant-numeric:tabular-nums; font-weight:600}
+  .scorebar .track{position:relative; height:12px; background:var(--soft); border:1px solid var(--line)}
+  .scorebar .track::before{content:""; position:absolute; left:50%; top:-3px; bottom:-3px; width:1px; background:var(--muted)}
+  .scorebar .fill{position:absolute; top:0; bottom:0}
+  .scorebar .fill.pos{left:50%; background:var(--s-on)}
+  .scorebar .fill.neg{right:50%; background:var(--s-off)}
+  .scorebar.na{opacity:.5}
+  .score-total{display:flex; justify-content:space-between; border-top:1px solid var(--line); padding-top:.7rem;
+               margin-top:.9rem; font-weight:700; font-size:1.05rem}
+  .score-total .sub{color:var(--muted); font-weight:400; font-size:.82rem; margin-left:.4rem}
 
-  /* ------- sections / charts ------- */
-  section.block{margin-bottom:3rem}
-  section.block>h3{font-size:1.05rem; font-weight:700; margin-bottom:.35rem}
-  section.block>.note{color:var(--muted); font-size:.9rem; margin-bottom:1rem}
-  .chartbox{border:1px solid var(--line); background:#fff; padding:1rem; height:380px;
-            position:relative}
-  .chartbox .fallback{color:var(--muted); font-size:.95rem; padding:1rem}
+  /* ------- blocks ------- */
+  .block{background:var(--panel); border:1px solid var(--line); padding:1.25rem 1.5rem; margin-bottom:1.25rem}
+  .block .head{display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap}
+  .block .note{font-size:.85rem; color:var(--muted); margin-bottom:1rem; max-width:70ch}
+  .chartbox{position:relative; height:360px}
+  .chartbox.short{height:220px}
+  .fallback{color:var(--muted); font-size:.9rem; padding:1rem; border:1px dashed var(--line)}
+  .seg{display:inline-flex; gap:.25rem; margin-bottom:.75rem}
 
-  table{width:100%; border-collapse:collapse; font-size:.95rem; background:#fff;
-        border:1px solid var(--line)}
-  th,td{text-align:left; padding:.55rem .8rem; border-bottom:1px solid var(--line)}
-  th{font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
-  td.num{font-variant-numeric:tabular-nums}
+  table{width:100%; border-collapse:collapse; font-size:.9rem}
+  th{text-align:left; font-weight:600; color:var(--muted); font-size:.78rem; text-transform:uppercase;
+     letter-spacing:.06em; padding:.5rem .6rem; border-bottom:1px solid var(--line)}
+  td{padding:.55rem .6rem; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:none}
+  td.num, th.num{text-align:right}
   .risk-on{color:var(--s-on); font-weight:600}
   .risk-off{color:var(--s-off); font-weight:600}
+  .pos{color:var(--s-on)} .neg{color:var(--s-off)}
   .tablewrap{overflow-x:auto}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:1.25rem}
 
-  footer{border-top:1px solid var(--line); padding-top:1.5rem; color:var(--muted);
-         font-size:.85rem}
+  .statebar{display:flex; height:22px; font-size:.72rem; color:#fff; font-weight:600; margin:.5rem 0 1rem}
+  .statebar div{display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:.75rem; margin-bottom:1rem}
+  .kpi{background:var(--soft); border:1px solid var(--line); padding:.6rem .8rem}
+  .kpi .k{font-size:.75rem; color:var(--muted)}
+  .kpi .v{font-weight:700; font-size:1.1rem; font-variant-numeric:tabular-nums}
+
+  /* ------- form so sánh tham số ------- */
+  form.params{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:.75rem; margin-bottom:1rem; align-items:end}
+  form.params label{font-size:.78rem; color:var(--muted); display:block}
+  form.params input{font:inherit; width:100%; padding:.4rem .5rem; border:1px solid var(--line); background:var(--panel);
+                    color:var(--ink); font-variant-numeric:tabular-nums}
+  form.params .actions{display:flex; gap:.5rem}
+  #bt-msg{font-size:.85rem; color:var(--s-off); min-height:1.2em; margin-bottom:.5rem}
+
+  footer{border-top:1px solid var(--line); padding-top:1.5rem; color:var(--muted); font-size:.85rem}
   footer p{margin-bottom:.75rem; max-width:70ch}
-  button#reload{font:inherit; font-weight:600; padding:.55rem 1.1rem; cursor:pointer;
-    background:var(--ink); color:#fff; border:none}
-  button#reload:hover{opacity:.85}
+  footer .actions{display:flex; gap:.5rem; flex-wrap:wrap}
 
   @media (max-width:720px){
-    .panels{grid-template-columns:1fr}
+    .panels, .grid2{grid-template-columns:1fr}
     .chartbox{height:300px}
     body{padding:1.5rem 1rem 3rem}
   }
@@ -123,6 +173,7 @@
   <header class="site">
     <h1>RiskonBTC</h1>
     <span class="sub">Trạng thái rủi ro Bitcoin theo ngày</span>
+    <button id="theme" class="btn small" type="button" aria-label="Đổi giao diện sáng/tối">🌙 Tối</button>
   </header>
 
   <div id="status" role="status">Đang tải dữ liệu mô hình… Nếu server vừa khởi động,
@@ -131,7 +182,7 @@
   <main id="content" hidden>
     <!-- HERO -->
     <section class="hero">
-      <p class="kicker">Hôm nay, <span id="asof"></span></p>
+      <p class="kicker">Nến chốt ngày <span id="asof"></span> (UTC)</p>
       <h2 id="state-name"></h2>
       <p class="label"><span id="state-label"></span> · <span id="state-risk"></span>
          · từ ngày <span id="since"></span> (<span id="since-days"></span> ngày)</p>
@@ -145,6 +196,15 @@
         <div class="needle" id="needle" style="left:50%"></div>
         <div class="scale"><span>−3</span><span>0</span><span>+3</span></div>
       </div>
+
+      <div id="intraday" class="intraday" hidden>
+        <span class="tag">Xem trước intraday</span>
+        <span>Nến hôm nay <b id="i-date"></b> chưa đóng: giá <b id="i-price"></b>,
+          điểm <b id="i-score"></b> → <b id="i-state"></b>.
+          <span id="i-note"></span></span>
+      </div>
+
+      <p class="meta-line" id="meta-line"></p>
     </section>
 
     <!-- PANELS -->
@@ -156,49 +216,107 @@
           <div class="cash" id="alloc-cash"></div>
         </div>
         <dl class="facts">
-          <div><dt>Giá BTC</dt><dd id="price"></dd></div>
+          <div><dt>Giá BTC (đóng cửa)</dt><dd id="price"></dd></div>
           <div><dt>Trạng thái từ ngày</dt><dd id="since2"></dd></div>
           <div><dt>Mayer multiple (giá / SMA200)</dt><dd id="mayer"></dd></div>
           <div><dt>Vol ratio (7 ngày / 90 ngày)</dt><dd id="volratio"></dd></div>
+          <div><dt>MVRV (Coin Metrics)</dt><dd id="mvrv"></dd></div>
+          <div><dt>Chỉ số USD (FRED, trade-weighted)</dt><dd id="dxy"></dd></div>
         </dl>
       </section>
       <section class="panel">
-        <h3>Điểm số theo 3 khung thời gian</h3>
-        <div class="scorebar">
-          <div class="head"><span>Dài hạn — cấu trúc xu hướng</span><span class="val" id="v-long"></span></div>
-          <div class="track" id="t-long"></div>
-        </div>
-        <div class="scorebar">
-          <div class="head"><span>Trung hạn — momentum</span><span class="val" id="v-mid"></span></div>
-          <div class="track" id="t-mid"></div>
-        </div>
-        <div class="scorebar">
-          <div class="head"><span>Ngắn hạn — sốc biến động</span><span class="val" id="v-short"></span></div>
-          <div class="track" id="t-short"></div>
-        </div>
-        <div class="score-total"><span>Điểm tổng hợp</span><span id="v-total"></span></div>
+        <h3>Điểm số theo 5 thành phần</h3>
+        <div id="scorebars"></div>
+        <div class="score-total"><span>Điểm tổng hợp <span class="sub">EMA <span id="p-smooth"></span> ngày, chuẩn hoá ±3</span></span>
+          <span id="v-total"></span></div>
       </section>
     </div>
 
     <!-- PRICE CHART -->
     <section class="block">
-      <h3>Giá BTC 4 năm, tô màu theo trạng thái</h3>
+      <div class="head">
+        <h3>Giá BTC tô màu theo trạng thái</h3>
+        <div class="seg" role="group" aria-label="Khung thời gian">
+          <button class="btn small range" data-years="1" type="button">1 năm</button>
+          <button class="btn small range" data-years="2" type="button">2 năm</button>
+          <button class="btn small range active" data-years="4" type="button">4 năm</button>
+        </div>
+      </div>
       <p class="note">Trục giá log. Mỗi đoạn đường mang màu của trạng thái ngày hôm đó.</p>
       <div class="chartbox"><canvas id="price-chart"></canvas></div>
     </section>
 
-    <!-- EQUITY CHART -->
+    <!-- EQUITY + DRAWDOWN -->
     <section class="block">
       <h3>Backtest: mô hình so với nắm giữ liên tục</h3>
-      <p class="note">Vốn chuẩn hoá về 1 ở đầu kỳ 4 năm; trục log. Tín hiệu áp dụng cho
+      <p class="note">Vốn chuẩn hoá về 1 ở đầu khung đang chọn; trục log. Tín hiệu áp dụng cho
         ngày hôm sau, phí 0,1% mỗi lần đổi phân bổ. Số liệu bảng tính trên toàn bộ
         lịch sử từ <span id="bt-from"></span>.</p>
       <div class="chartbox"><canvas id="equity-chart"></canvas></div>
+      <p class="note" style="margin-top:1rem">Drawdown (sụt giảm từ đỉnh) của hai chiến lược trong cùng khung.</p>
+      <div class="chartbox short"><canvas id="dd-chart"></canvas></div>
       <div class="tablewrap" style="margin-top:1rem">
         <table>
-          <thead><tr><th>Chiến lược</th><th>CAGR</th><th>Max drawdown</th>
-                     <th>Sharpe</th><th>Bội số vốn</th></tr></thead>
+          <thead><tr><th>Chiến lược</th><th class="num">CAGR</th><th class="num">Max drawdown</th>
+                     <th class="num">Sharpe</th><th class="num">Bội số vốn</th></tr></thead>
           <tbody id="bt-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- YEARLY + REGIME BEHAVIOUR -->
+    <div class="grid2">
+      <section class="block">
+        <h3>Lợi nhuận theo năm</h3>
+        <p class="note">Mô hình thường thua buy &amp; hold trong năm tăng mạnh và thắng lớn trong năm giảm.
+          Mục tiêu là giảm rủi ro, không phải tối đa lợi nhuận.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Năm</th><th class="num">Mô hình</th><th class="num">Buy &amp; hold</th><th class="num">Chênh lệch</th></tr></thead>
+            <tbody id="yearly-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="block">
+        <h3>Hành vi trạng thái</h3>
+        <div class="kpis">
+          <div class="kpi"><div class="k">Đổi trạng thái / năm</div><div class="v" id="k-changes"></div></div>
+          <div class="kpi"><div class="k">Đảo Risk-On/Off / năm</div><div class="v" id="k-flips"></div></div>
+          <div class="kpi"><div class="k">Regime trung vị</div><div class="v" id="k-median"></div></div>
+          <div class="kpi"><div class="k">Tổng phí backtest</div><div class="v" id="k-fees"></div></div>
+        </div>
+        <p class="note" style="margin-bottom:.25rem">Tỷ lệ thời gian ở mỗi trạng thái</p>
+        <div class="statebar" id="statebar"></div>
+        <p class="note">Tham số hiện hành: làm mượt <b id="p2-smooth"></b> ngày, xác nhận <b id="p2-confirm"></b> ngày,
+          đệm <b id="p2-buffer"></b>, ngưỡng Strong <b id="p2-strong"></b>, Mild <b id="p2-mild"></b>.</p>
+      </section>
+    </div>
+
+    <!-- PARAM COMPARISON -->
+    <section class="block">
+      <h3>So sánh tham số</h3>
+      <p class="note">Chạy lại backtest với tham số khác trên cùng dữ liệu. Trọng số 0 sẽ loại thành phần
+        đó khỏi điểm tổng. Kết quả chỉ để nghiên cứu độ nhạy, không phải để tối ưu quá khứ.</p>
+      <form class="params" id="param-form">
+        <div><label for="f-smooth">Làm mượt (ngày)</label><input id="f-smooth" name="smooth_days" type="number" min="1" max="30" step="1"></div>
+        <div><label for="f-confirm">Xác nhận (ngày)</label><input id="f-confirm" name="confirm_days" type="number" min="1" max="15" step="1"></div>
+        <div><label for="f-buffer">Đệm hysteresis</label><input id="f-buffer" name="buffer" type="number" min="0" max="1.5" step="0.1"></div>
+        <div><label for="f-strong">Ngưỡng Strong</label><input id="f-strong" name="enter_strong" type="number" min="0.5" max="3" step="0.1"></div>
+        <div><label for="f-mild">Ngưỡng Mild</label><input id="f-mild" name="enter_mild" type="number" min="0" max="2" step="0.1"></div>
+        <div><label for="f-wshort">Trọng số ngắn hạn</label><input id="f-wshort" name="w_short" type="number" min="0" max="3" step="0.1"></div>
+        <div><label for="f-wonchain">Trọng số on-chain</label><input id="f-wonchain" name="w_onchain" type="number" min="0" max="3" step="0.1"></div>
+        <div><label for="f-wmacro">Trọng số vĩ mô</label><input id="f-wmacro" name="w_macro" type="number" min="0" max="3" step="0.1"></div>
+        <div class="actions">
+          <button class="btn primary" type="submit">Chạy backtest</button>
+          <button class="btn" type="button" id="param-reset">Mặc định</button>
+        </div>
+      </form>
+      <div id="bt-msg"></div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Tham số</th><th class="num">CAGR</th><th class="num">Max DD</th><th class="num">Sharpe</th>
+                     <th class="num">Bội số</th><th class="num">Đổi/năm</th><th class="num">Đảo/năm</th><th class="num">Regime (ngày)</th></tr></thead>
+          <tbody id="cmp-body"></tbody>
         </table>
       </div>
     </section>
@@ -209,7 +327,7 @@
       <p class="note">Thời điểm mô hình chuyển giữa Risk-On và Risk-Off (mới nhất trước).</p>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>Ngày</th><th>Chuyển sang</th><th>Trạng thái</th><th>Giá BTC</th></tr></thead>
+          <thead><tr><th>Ngày</th><th>Chuyển sang</th><th>Trạng thái</th><th class="num">Giá BTC</th></tr></thead>
           <tbody id="inf-body"></tbody>
         </table>
       </div>
@@ -217,7 +335,8 @@
 
     <footer>
       <p>RiskonBTC là mô hình mã nguồn mở được tái tạo theo các mô tả công khai về
-         cách đọc trạng thái rủi ro của Bitcoin.</p>
+         cách đọc trạng thái rủi ro của Bitcoin. Giá từ Binance/Coinbase/Coin Metrics,
+         MVRV từ Coin Metrics, chỉ số USD từ FRED.</p>
       <p>Kết quả backtest trong quá khứ không đảm bảo hiệu quả trong tương lai.
          Toàn bộ nội dung chỉ nhằm mục đích nghiên cứu, <strong>không phải lời khuyên
          đầu tư</strong>.</p>
@@ -225,162 +344,325 @@
          <a href="mailto:ongviet@icloud.com">ongviet@icloud.com</a>
          hay X.com profile:
          <a href="https://x.com/ongvan_viet" target="_blank" rel="noopener">https://x.com/ongvan_viet</a></p>
-      <button id="reload" type="button">Tải lại dữ liệu</button>
+      <div class="actions">
+        <button id="reload" class="btn primary" type="button">Tải lại dữ liệu</button>
+        <a class="btn" href="/api/history.csv" download="riskonbtc_history.csv">Tải CSV lịch sử 4 năm</a>
+        <a class="btn" href="/api/read" target="_blank" rel="noopener">API JSON</a>
+      </div>
     </footer>
   </main>
 </div>
 
 <script>
 "use strict";
-const COLORS = {"-2":"#C8392B","-1":"#D9932A","1":"#7BAF3A","2":"#1B7F4C"};
 const NAMES  = {"-2":"Strong-Off","-1":"Mild-Off","1":"Mild-On","2":"Strong-On"};
+const COMPONENTS = [
+  ["long",    "Dài hạn — cấu trúc xu hướng"],
+  ["mid",     "Trung hạn — momentum"],
+  ["short",   "Ngắn hạn — ROC7 × sốc biến động"],
+  ["onchain", "On-chain — MVRV z-score"],
+  ["macro",   "Vĩ mô — sức mạnh USD (đảo dấu)"],
+];
 const statusEl = document.getElementById('status');
 const content  = document.getElementById('content');
-let charts = [];
+let charts = {};
+let DATA = null;
+let rangeYears = 4;
 
 const fmtUSD = v => v.toLocaleString('vi-VN', {maximumFractionDigits:0}) + ' USD';
 const fmtPct = v => (v*100).toFixed(1).replace('.', ',') + '%';
-const fmtNum = v => v.toFixed(2).replace('.', ',');
+const fmtNum = (v, d=2) => v.toFixed(d).replace('.', ',');
+const fmtSigned = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2).replace('.', ',');
+const $ = id => document.getElementById(id);
+function setText(id, text){ $(id).textContent = text; }
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function colorOf(code){ return cssVar({"-2":"--s-off","-1":"--m-off","1":"--m-on","2":"--s-on"}[String(code)]); }
 
-function setText(id, text){ document.getElementById(id).textContent = text; }
+/* ---------- giao diện sáng/tối ---------- */
+function applyTheme(t){
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  const dark = t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches);
+  $('theme').textContent = dark ? '☀️ Sáng' : '🌙 Tối';
+  if (DATA) drawCharts();
+}
+(function initTheme(){
+  let saved = null;
+  try{ saved = localStorage.getItem('theme'); }catch(e){}
+  applyTheme(saved);
+  $('theme').addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme === 'dark' ||
+      (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+    const next = dark ? 'light' : 'dark';
+    try{ localStorage.setItem('theme', next); }catch(e){}
+    applyTheme(next);
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!document.documentElement.dataset.theme) applyTheme(null);
+  });
+})();
 
-// Thanh điểm có tâm ở 0: âm tô đỏ về bên trái, dương tô xanh về bên phải
-function drawScoreBar(trackId, value, maxAbs){
-  const track = document.getElementById(trackId);
-  track.querySelectorAll('.fill').forEach(f => f.remove());
-  const fill = document.createElement('div');
-  const w = Math.min(Math.abs(value)/maxAbs, 1) * 50;
-  fill.className = 'fill ' + (value >= 0 ? 'pos' : 'neg');
-  fill.style.width = w + '%';
-  track.appendChild(fill);
+/* ---------- thanh điểm có tâm ở 0 ---------- */
+function scoreBar(key, title, value, weight){
+  const na = value === null || value === undefined;
+  const w = na ? 0 : Math.min(Math.abs(value), 1) * 50;
+  return `<div class="scorebar${na ? ' na' : ''}">
+    <div class="head"><span>${title}<span class="w">w=${fmtNum(weight,1)}</span></span>
+      <span class="val">${na ? 'không có dữ liệu' : fmtSigned(value)}</span></div>
+    <div class="track"><div class="fill ${value >= 0 ? 'pos' : 'neg'}" style="width:${w}%"></div></div>
+  </div>`;
 }
 
 function render(data){
+  DATA = data;
   const st = data.state;
   setText('asof', data.as_of);
   setText('state-name', st.name);
-  document.getElementById('state-name').style.color = COLORS[st.code];
+  $('state-name').style.color = colorOf(st.code);
   setText('state-label', st.label);
-  const riskEl = document.getElementById('state-risk');
+  const riskEl = $('state-risk');
   riskEl.textContent = st.risk;
   riskEl.className = st.risk === 'Risk-On' ? 'risk-on' : 'risk-off';
   setText('since', data.regime_since);
   setText('since-days', data.regime_days);
   setText('since2', data.regime_since);
 
-  // Thang 4 ô + kim theo điểm tổng (−3…+3)
   document.querySelectorAll('.gauge .cell').forEach(c =>
     c.classList.toggle('active', Number(c.dataset.code) === st.code));
   const pos = Math.max(0, Math.min(1, (data.score.total + 3) / 6));
-  document.getElementById('needle').style.left = (pos*100).toFixed(1) + '%';
+  $('needle').style.left = (pos*100).toFixed(1) + '%';
+
+  // Intraday
+  const it = data.intraday;
+  const box = $('intraday');
+  if (it){
+    box.hidden = false;
+    box.classList.toggle('differs', it.differs);
+    setText('i-date', it.date);
+    setText('i-price', fmtUSD(it.price));
+    setText('i-score', fmtSigned(it.score));
+    setText('i-state', it.state.name + ' (' + it.state.risk + ')');
+    setText('i-note', it.differs
+      ? 'Khác với trạng thái đã chốt — chỉ có hiệu lực nếu giữ nguyên tới khi nến đóng (00:00 UTC).'
+      : 'Trùng với trạng thái đã chốt.');
+  } else box.hidden = true;
+
+  // Nguồn dữ liệu
+  const m = data.meta || {};
+  let metaTxt = `Nguồn giá: ${m.source || '—'} · cập nhật ${(m.fetched_at || '').replace('T',' ').replace('Z',' UTC')}`;
+  if (m.extras){
+    const ex = Object.entries(m.extras).map(([k,v]) => `${k.toUpperCase()} tới ${v}`).join(', ');
+    if (ex) metaTxt += ` · ${ex}`;
+  }
+  $('meta-line').innerHTML = metaTxt + (m.stale
+    ? ' · <span class="warn">⚠ Không tải được giá mới, đang dùng dữ liệu đã lưu.</span>' : '');
 
   // Phân bổ
   const btcPct = st.alloc;
-  const btcEl = document.getElementById('alloc-btc');
-  const cashEl = document.getElementById('alloc-cash');
-  btcEl.style.flexGrow = btcPct;
-  cashEl.style.flexGrow = 1 - btcPct;
-  btcEl.textContent = 'BTC ' + Math.round(btcPct*100) + '%';
-  cashEl.textContent = 'Tiền mặt ' + Math.round((1-btcPct)*100) + '%';
+  $('alloc-btc').style.flexGrow = btcPct;
+  $('alloc-cash').style.flexGrow = 1 - btcPct;
+  $('alloc-btc').textContent = 'BTC ' + Math.round(btcPct*100) + '%';
+  $('alloc-cash').textContent = 'Tiền mặt ' + Math.round((1-btcPct)*100) + '%';
 
   setText('price', fmtUSD(data.price));
   setText('mayer', fmtNum(data.metrics.mayer));
   setText('volratio', fmtNum(data.metrics.vol_ratio));
+  setText('mvrv', data.metrics.mvrv == null ? '—' : fmtNum(data.metrics.mvrv));
+  setText('dxy', data.metrics.dxy == null ? '—' : fmtNum(data.metrics.dxy, 1));
 
-  // Điểm 3 khung
-  setText('v-long',  data.score.long.toFixed(2));
-  setText('v-mid',   data.score.mid.toFixed(2));
-  setText('v-short', data.score.short.toFixed(2));
-  setText('v-total', data.score.total.toFixed(2));
-  drawScoreBar('t-long',  data.score.long,  1.5);
-  drawScoreBar('t-mid',   data.score.mid,   1.5);
-  drawScoreBar('t-short', data.score.short, 1.5);
+  // Điểm 5 thành phần
+  $('scorebars').innerHTML = COMPONENTS.map(([k, t]) =>
+    scoreBar(k, t, data.score[k], data.weights[k])).join('');
+  setText('v-total', fmtSigned(data.score.total));
+  setText('p-smooth', data.params.smooth_days);
 
   // Backtest table
   setText('bt-from', data.backtest.from);
   const rows = [['Mô hình RiskonBTC', data.backtest.vector],
                 ['Nắm giữ liên tục (buy & hold)', data.backtest.hold]];
-  document.getElementById('bt-body').innerHTML = rows.map(([name, s]) =>
+  $('bt-body').innerHTML = rows.map(([name, s]) =>
     `<tr><td>${name}</td><td class="num">${fmtPct(s.cagr)}</td>` +
     `<td class="num">${fmtPct(s.max_drawdown)}</td>` +
     `<td class="num">${fmtNum(s.sharpe)}</td>` +
     `<td class="num">×${fmtNum(s.multiple)}</td></tr>`).join('');
 
+  // Theo năm
+  $('yearly-body').innerHTML = data.backtest.yearly.map(y => {
+    const d = y.strat - y.hold;
+    return `<tr><td>${y.year}</td><td class="num ${y.strat>=0?'pos':'neg'}">${fmtPct(y.strat)}</td>` +
+      `<td class="num ${y.hold>=0?'pos':'neg'}">${fmtPct(y.hold)}</td>` +
+      `<td class="num ${d>=0?'pos':'neg'}">${d>=0?'+':''}${fmtPct(d)}</td></tr>`;
+  }).join('');
+
+  // Hành vi trạng thái
+  const rg = data.backtest.regime;
+  setText('k-changes', fmtNum(rg.changes_per_year, 1));
+  setText('k-flips', fmtNum(rg.flips_per_year, 1));
+  setText('k-median', rg.median_regime_days + ' ngày');
+  setText('k-fees', fmtPct(data.backtest.total_fees));
+  $('statebar').innerHTML = [2, 1, -1, -2].map(c => {
+    const share = rg.time_in_state[String(c)] || 0;
+    return `<div style="flex:${share}; background:${colorOf(c)}" title="${NAMES[c]} ${fmtPct(share)}">${share > 0.17 ? NAMES[c] + ' ' + Math.round(share*100) + '%' : (share > 0.08 ? Math.round(share*100) + '%' : '')}</div>`;
+  }).join('');
+  const p = data.params;
+  setText('p2-smooth', p.smooth_days); setText('p2-confirm', p.confirm_days);
+  setText('p2-buffer', fmtNum(p.buffer, 1)); setText('p2-strong', fmtNum(p.enter_strong, 1));
+  setText('p2-mild', fmtNum(p.enter_mild, 1));
+
+  // Form tham số + hàng baseline
+  fillParamForm(p);
+  $('cmp-body').innerHTML = cmpRow('Mặc định hiện hành', data.backtest, true);
+
   // Inflections
-  document.getElementById('inf-body').innerHTML = data.inflections.map(f =>
-    `<tr><td class="num">${f.date}</td>` +
+  $('inf-body').innerHTML = data.inflections.map(f =>
+    `<tr><td>${f.date}</td>` +
     `<td class="${f.risk==='Risk-On'?'risk-on':'risk-off'}">${f.risk}</td>` +
     `<td>${f.state}</td><td class="num">${fmtUSD(f.price)}</td></tr>`).join('');
 
-  drawCharts(data.history);
-
+  drawCharts();
   statusEl.hidden = true;
   content.hidden = false;
 }
 
+/* ---------- so sánh tham số ---------- */
+function fillParamForm(p){
+  const f = $('param-form');
+  for (const el of f.querySelectorAll('input')) el.value = p[el.name];
+}
+function cmpRow(label, bt, baseline){
+  const v = bt.vector, g = bt.regime;
+  return `<tr${baseline ? ' style="font-weight:600"' : ''}><td>${label}</td>` +
+    `<td class="num">${fmtPct(v.cagr)}</td><td class="num">${fmtPct(v.max_drawdown)}</td>` +
+    `<td class="num">${fmtNum(v.sharpe)}</td><td class="num">×${fmtNum(v.multiple)}</td>` +
+    `<td class="num">${fmtNum(g.changes_per_year,1)}</td><td class="num">${fmtNum(g.flips_per_year,1)}</td>` +
+    `<td class="num">${g.median_regime_days}</td></tr>`;
+}
+$('param-form').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const f = ev.target;
+  const q = new URLSearchParams();
+  const label = [];
+  for (const el of f.querySelectorAll('input')){
+    if (el.value === '') continue;
+    q.set(el.name, el.value);
+    if (DATA && Number(el.value) !== Number(DATA.params[el.name]))
+      label.push(`${el.previousElementSibling.textContent.replace(/ \(.*\)/,'')}=${el.value}`);
+  }
+  $('bt-msg').textContent = '';
+  const btn = f.querySelector('button[type=submit]');
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/backtest?' + q.toString());
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || ('HTTP ' + res.status));
+    $('cmp-body').insertAdjacentHTML('beforeend',
+      cmpRow(label.length ? label.join(', ') : 'Giống mặc định', body.result, false));
+  }catch(e){
+    $('bt-msg').textContent = 'Không chạy được: ' + e.message;
+  }finally{ btn.disabled = false; }
+});
+$('param-reset').addEventListener('click', () => { if (DATA) fillParamForm(DATA.params); });
+
+/* ---------- biểu đồ ---------- */
 function chartFallback(canvasId, msg){
-  const box = document.getElementById(canvasId).parentElement;
+  const el = $(canvasId);
+  if (!el) return;
+  const box = el.parentElement;
   box.innerHTML = '<p class="fallback">' + msg + '</p>';
   box.style.height = 'auto';
 }
+function sliceHist(hist, years){
+  const n = hist.dates.length;
+  const last = new Date(hist.dates[n-1]);
+  const cutoff = new Date(last); cutoff.setFullYear(cutoff.getFullYear() - years);
+  const cstr = cutoff.toISOString().slice(0,10);
+  let i0 = hist.dates.findIndex(d => d >= cstr);
+  if (i0 < 0) i0 = 0;
+  const out = {};
+  for (const k of Object.keys(hist)) out[k] = hist[k].slice(i0);
+  // chuẩn hoá lại equity về 1 và tính lại drawdown trong khung
+  const renorm = arr => { const b = arr[0]; return arr.map(v => v / b); };
+  out.equity_strat = renorm(out.equity_strat);
+  out.equity_hold = renorm(out.equity_hold);
+  const dd = arr => { let peak = -Infinity; return arr.map(v => { peak = Math.max(peak, v); return v/peak - 1; }); };
+  out.dd_strat = dd(out.equity_strat);
+  out.dd_hold = dd(out.equity_hold);
+  return out;
+}
 
-function drawCharts(hist){
+function drawCharts(){
   if (typeof Chart === 'undefined'){
     const msg = 'Không tải được thư viện biểu đồ (Chart.js từ CDN có thể bị chặn ' +
       'bởi ad-blocker hoặc mạng). Mọi số liệu phía trên vẫn đầy đủ và chính xác.';
-    chartFallback('price-chart', msg);
-    chartFallback('equity-chart', msg);
+    chartFallback('price-chart', msg); chartFallback('equity-chart', msg); chartFallback('dd-chart', msg);
     return;
   }
-  charts.forEach(c => c.destroy());
-  charts = [];
-
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+  const hist = sliceHist(DATA.history, rangeYears);
+  const ink = cssVar('--ink'), muted = cssVar('--muted'), grid = cssVar('--grid'), hold = cssVar('--hold');
+  const panel = cssVar('--panel');
   const common = {
     responsive: true, maintainAspectRatio: false, animation: false,
     interaction: {mode: 'index', intersect: false},
+    plugins: {tooltip: {backgroundColor: panel, titleColor: ink, bodyColor: ink, borderColor: grid, borderWidth: 1}},
     scales: {
-      x: {ticks: {maxTicksLimit: 8, color:'#5C6B7A'}, grid: {color:'#EEF1F4'}},
-      y: {type: 'logarithmic', ticks: {color:'#5C6B7A'}, grid: {color:'#EEF1F4'}}
+      x: {ticks: {maxTicksLimit: 8, color: muted}, grid: {color: grid}},
+      y: {type: 'logarithmic', ticks: {color: muted}, grid: {color: grid}}
     }
   };
 
-  // Biểu đồ giá: màu từng đoạn theo trạng thái ngày đó
-  charts.push(new Chart(document.getElementById('price-chart'), {
+  charts.price = new Chart($('price-chart'), {
     type: 'line',
     data: {labels: hist.dates, datasets: [{
       data: hist.close, pointRadius: 0, borderWidth: 2, tension: 0,
-      segment: {borderColor: ctx => COLORS[String(hist.state[ctx.p1DataIndex])]}
+      segment: {borderColor: ctx => colorOf(hist.state[ctx.p1DataIndex])}
     }]},
-    options: {...common, plugins: {legend: {display:false}, tooltip: {callbacks: {
-      label: ctx => fmtUSD(ctx.parsed.y) + ' — ' +
-                    NAMES[String(hist.state[ctx.dataIndex])]
+    options: {...common, plugins: {...common.plugins, legend: {display:false}, tooltip: {...common.plugins.tooltip, callbacks: {
+      label: ctx => fmtUSD(ctx.parsed.y) + ' — ' + NAMES[String(hist.state[ctx.dataIndex])] +
+                    ' (điểm ' + fmtSigned(hist.score[ctx.dataIndex]) + ')'
     }}}}
-  }));
+  });
 
-  // Biểu đồ equity: mô hình vs buy & hold
-  charts.push(new Chart(document.getElementById('equity-chart'), {
+  charts.equity = new Chart($('equity-chart'), {
     type: 'line',
     data: {labels: hist.dates, datasets: [
-      {label: 'Mô hình', data: hist.equity_strat, borderColor:'#14202B',
-       pointRadius:0, borderWidth:2, tension:0},
-      {label: 'Buy & hold', data: hist.equity_hold, borderColor:'#8A98A6',
-       pointRadius:0, borderWidth:2, borderDash:[5,4], tension:0}
+      {label: 'Mô hình', data: hist.equity_strat, borderColor: ink, pointRadius:0, borderWidth:2, tension:0},
+      {label: 'Buy & hold', data: hist.equity_hold, borderColor: hold, pointRadius:0, borderWidth:2, borderDash:[5,4], tension:0}
     ]},
-    options: {...common, plugins: {legend: {labels:{color:'#14202B'}}, tooltip: {
+    options: {...common, plugins: {...common.plugins, legend: {labels:{color: ink}}, tooltip: {...common.plugins.tooltip,
       callbacks: {label: ctx => ctx.dataset.label + ': ×' + fmtNum(ctx.parsed.y)}
     }}}
-  }));
-}
+  });
 
+  charts.dd = new Chart($('dd-chart'), {
+    type: 'line',
+    data: {labels: hist.dates, datasets: [
+      {label: 'Mô hình', data: hist.dd_strat, borderColor: ink, backgroundColor: ink + '22', fill: true, pointRadius:0, borderWidth:1.5, tension:0},
+      {label: 'Buy & hold', data: hist.dd_hold, borderColor: hold, pointRadius:0, borderWidth:1.5, borderDash:[5,4], tension:0}
+    ]},
+    options: {...common, scales: {x: common.scales.x, y: {ticks: {color: muted, callback: v => Math.round(v*100) + '%'}, grid: {color: grid}, max: 0}},
+      plugins: {...common.plugins, legend: {labels:{color: ink}}, tooltip: {...common.plugins.tooltip,
+      callbacks: {label: ctx => ctx.dataset.label + ': ' + fmtPct(ctx.parsed.y)}}}}
+  });
+}
+document.querySelectorAll('.range').forEach(b => b.addEventListener('click', () => {
+  rangeYears = Number(b.dataset.years);
+  document.querySelectorAll('.range').forEach(x => x.classList.toggle('active', x === b));
+  if (DATA) drawCharts();
+}));
+
+/* ---------- tải dữ liệu ---------- */
 async function load(){
   statusEl.hidden = false;
   statusEl.classList.remove('error');
   statusEl.textContent = 'Đang tải dữ liệu mô hình… Nếu server vừa khởi động, ' +
     'lần tính đầu tiên có thể mất 10–30 giây.';
   try{
-    const res = await fetch('/api/full');
+    const res = await fetch('/api/full', {cache: 'no-cache'});
     if (res.status === 503){
-      statusEl.textContent = 'Server đang tính dữ liệu lần đầu. Tự thử lại sau 5 giây…';
+      let detail = '';
+      try{ detail = (await res.json()).detail || ''; }catch(e){}
+      statusEl.textContent = (detail || 'Server đang tính dữ liệu lần đầu.') + ' Tự thử lại sau 5 giây…';
       setTimeout(load, 5000);
       return;
     }
@@ -394,7 +676,7 @@ async function load(){
   }
 }
 
-document.getElementById('reload').addEventListener('click', load);
+$('reload').addEventListener('click', load);
 load();
 </script>
 </body>

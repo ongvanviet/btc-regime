@@ -7,3 +7,5 @@ services:
     envVars:
       - key: CACHE_TTL_SECONDS
         value: "3600"
+      - key: DATA_DIR
+        value: "/srv/data"

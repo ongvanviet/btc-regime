@@ -1,0 +1,38 @@
+# Chay mo hinh moi ngay luc 00:20 UTC (sau khi nen ngay dong) va gui canh bao
+# Telegram/email neu trang thai Risk-On/Risk-Off doi so voi lan truoc.
+# Trang thai lan truoc duoc giu giua cac lan chay bang actions/cache.
+name: daily-alert
+
+on:
+  schedule:
+    - cron: "20 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    env:
+      DATA_DIR: ${{ github.workspace }}/data
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+      SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Khoi phuc trang thai lan truoc
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: riskon-data-${{ github.run_id }}
+          restore-keys: riskon-data-
+      - name: Tinh mo hinh va gui canh bao neu doi trang thai
+        run: python -m app.alerts
