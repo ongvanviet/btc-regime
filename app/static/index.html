@@ -124,6 +124,7 @@
   .block .note{font-size:.85rem; color:var(--muted); margin-bottom:1rem; max-width:70ch}
   .chartbox{position:relative; height:360px}
   .chartbox.short{height:220px}
+  .chartbox.score{height:250px}
   .fallback{color:var(--muted); font-size:.9rem; padding:1rem; border:1px dashed var(--line)}
   .seg{display:inline-flex; gap:.25rem; margin-bottom:.75rem}
 
@@ -244,6 +245,11 @@
       </div>
       <p class="note">Trục giá log. Mỗi đoạn đường mang màu của trạng thái ngày hôm đó.</p>
       <div class="chartbox"><canvas id="price-chart"></canvas></div>
+      <p class="note" style="margin-top:1rem">Điểm rủi ro tổng hợp (−3 → +3) cùng khung thời gian, đồng bộ con trỏ với
+        chart giá. Nền màu là miền trạng thái theo ngưỡng Strong/Mild hiện hành, đường nét đứt là ngưỡng,
+        chấm tròn là giá trị hôm nay. Vì có bước xác nhận và đệm hysteresis, trạng thái có thể đổi muộn hơn
+        thời điểm điểm số cắt ngưỡng.</p>
+      <div class="chartbox score"><canvas id="score-chart"></canvas></div>
     </section>
 
     <!-- EQUITY + DRAWDOWN -->
@@ -589,11 +595,80 @@ function sliceHist(hist, years){
   return out;
 }
 
+/* Plugin Chart.js: tô nền các miền trạng thái (theo ngưỡng Strong/Mild), vẽ đường
+   ngưỡng nét đứt, đường 0 và nhãn tên trạng thái ở mép phải chart điểm rủi ro. */
+const scoreZonesPlugin = {
+  id: 'scoreZones',
+  beforeDatasetsDraw(chart, _args, o){
+    const {ctx, chartArea: {left, right, top, bottom}, scales: {y}} = chart;
+    const S = o.strong, M = o.mild;
+    const px = v => Math.min(bottom, Math.max(top, y.getPixelForValue(v)));
+    const bands = [
+      [ 3,  S, o.colors['2'],  NAMES['2']],
+      [ S,  M, o.colors['1'],  NAMES['1']],
+      [ M, -M, null,           'vùng đệm'],
+      [-M, -S, o.colors['-1'], NAMES['-1']],
+      [-S, -3, o.colors['-2'], NAMES['-2']],
+    ];
+    ctx.save();
+    ctx.beginPath(); ctx.rect(left, top, right - left, bottom - top); ctx.clip();
+    // nền miền trạng thái (màu trạng thái, rất nhạt)
+    for (const [hi, lo, col] of bands){
+      if (!col) continue;
+      const y1 = px(hi), y2 = px(lo);
+      ctx.fillStyle = col + '14';
+      ctx.fillRect(left, y1, right - left, y2 - y1);
+    }
+    // đường ngưỡng nét đứt
+    ctx.setLineDash([4, 4]); ctx.lineWidth = 1; ctx.strokeStyle = o.muted;
+    for (const v of [S, M, -M, -S]){
+      const yy = px(v);
+      ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(right, yy); ctx.stroke();
+    }
+    // đường 0 liền nét
+    ctx.setLineDash([]); ctx.strokeStyle = o.ink; ctx.globalAlpha = .55;
+    const y0 = px(0);
+    ctx.beginPath(); ctx.moveTo(left, y0); ctx.lineTo(right, y0); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // nhãn tên trạng thái ở mép trái mỗi miền (mép phải dành cho chấm giá trị hôm nay);
+    // miền quá mỏng (vùng đệm khi ngưỡng Mild nhỏ) thì bỏ nhãn để không đè đường 0
+    ctx.font = '600 11px "IBM Plex Sans", system-ui, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (const [hi, lo, col, name] of bands){
+      const y1 = px(hi), y2 = px(lo);
+      if (y2 - y1 < 24) continue;
+      ctx.fillStyle = col || o.muted;
+      ctx.fillText(name, left + 6, (y1 + y2) / 2);
+    }
+    ctx.restore();
+  }
+};
+
+/* Đồng bộ con trỏ giữa hai chart cùng trục thời gian (giá ↔ điểm rủi ro):
+   rê chuột trên chart này thì chart kia hiện cùng ngày. */
+function linkCharts(a, b){
+  const show = (src, dst) => (e) => {
+    const els = src.getElementsAtEventForMode(e, 'index', {intersect: false}, false);
+    if (!els.length) return;
+    const i = els[0].index;
+    dst.setActiveElements([{datasetIndex: 0, index: i}]);
+    dst.tooltip.setActiveElements([{datasetIndex: 0, index: i}], {x: 0, y: 0});
+    dst.update('none');
+  };
+  const hide = dst => () => {
+    dst.setActiveElements([]); dst.tooltip.setActiveElements([], {x: 0, y: 0}); dst.update('none');
+  };
+  // gán trực tiếp (không addEventListener) để không tích luỹ listener mỗi lần vẽ lại
+  a.canvas.onmousemove = show(a, b); a.canvas.onmouseleave = hide(b);
+  b.canvas.onmousemove = show(b, a); b.canvas.onmouseleave = hide(a);
+}
+
 function drawCharts(){
   if (typeof Chart === 'undefined'){
     const msg = 'Không tải được thư viện biểu đồ (Chart.js từ CDN có thể bị chặn ' +
       'bởi ad-blocker hoặc mạng). Mọi số liệu phía trên vẫn đầy đủ và chính xác.';
-    chartFallback('price-chart', msg); chartFallback('equity-chart', msg); chartFallback('dd-chart', msg);
+    chartFallback('price-chart', msg); chartFallback('score-chart', msg);
+    chartFallback('equity-chart', msg); chartFallback('dd-chart', msg);
     return;
   }
   Object.values(charts).forEach(c => c.destroy());
@@ -611,17 +686,61 @@ function drawCharts(){
     }
   };
 
+  // bề rộng trục y cố định để chart giá và chart điểm rủi ro thẳng hàng theo thời gian
+  const alignY = {afterFit: s => { s.width = 72; }};
+
   charts.price = new Chart($('price-chart'), {
     type: 'line',
     data: {labels: hist.dates, datasets: [{
       data: hist.close, pointRadius: 0, borderWidth: 2, tension: 0,
-      segment: {borderColor: ctx => colorOf(hist.state[ctx.p1DataIndex])}
+      segment: {borderColor: ctx => colorOf(hist.state[ctx.p1DataIndex])},
+      pointHoverRadius: 5, pointHoverBorderWidth: 2, pointHoverBorderColor: panel,
+      pointHoverBackgroundColor: ctx => colorOf(hist.state[ctx.dataIndex])
     }]},
-    options: {...common, plugins: {...common.plugins, legend: {display:false}, tooltip: {...common.plugins.tooltip, callbacks: {
+    options: {...common, scales: {x: common.scales.x, y: {...common.scales.y, ...alignY}},
+      plugins: {...common.plugins, legend: {display:false}, tooltip: {...common.plugins.tooltip, callbacks: {
+      labelColor: ctx => { const c = colorOf(hist.state[ctx.dataIndex]); return {borderColor: c, backgroundColor: c}; },
       label: ctx => fmtUSD(ctx.parsed.y) + ' — ' + NAMES[String(hist.state[ctx.dataIndex])] +
                     ' (điểm ' + fmtSigned(hist.score[ctx.dataIndex]) + ')'
     }}}}
   });
+
+  // ---- chart điểm rủi ro −3 → +3 ----
+  const score = hist.score.map(v => Math.max(-3, Math.min(3, v)));   // kẹp trong ±3
+  const nLast = score.length - 1;
+  const prm = DATA.params;
+  const stateColors = {'2': colorOf(2), '1': colorOf(1), '-1': colorOf(-1), '-2': colorOf(-2)};
+  charts.score = new Chart($('score-chart'), {
+    type: 'line',
+    plugins: [scoreZonesPlugin],
+    data: {labels: hist.dates, datasets: [{
+      data: score, borderWidth: 2, tension: 0,
+      // đoạn đường mang màu trạng thái ngày đó, giống chart giá
+      segment: {borderColor: ctx => colorOf(hist.state[ctx.p1DataIndex])},
+      // tô vùng giữa đường và mức 0: xanh khi dương, đỏ khi âm
+      fill: {target: 'origin', above: stateColors['2'] + '33', below: stateColors['-2'] + '33'},
+      // chỉ hiện chấm ở ngày cuối (giá trị hôm nay)
+      pointRadius: ctx => ctx.dataIndex === nLast ? 5 : 0,
+      pointHoverRadius: 5,
+      pointBackgroundColor: ctx => colorOf(hist.state[ctx.dataIndex]),
+      pointBorderColor: panel, pointBorderWidth: 2
+    }]},
+    options: {...common,
+      scales: {
+        x: common.scales.x,
+        y: {type: 'linear', min: -3, max: 3, ...alignY,
+            ticks: {color: muted, stepSize: 1, callback: v => (v > 0 ? '+' : (v < 0 ? '−' : '')) + Math.abs(v)},
+            grid: {color: grid}}
+      },
+      plugins: {...common.plugins, legend: {display:false},
+        scoreZones: {strong: prm.enter_strong, mild: prm.enter_mild, colors: stateColors, muted, ink},
+        tooltip: {...common.plugins.tooltip, callbacks: {
+          labelColor: ctx => { const c = colorOf(hist.state[ctx.dataIndex]); return {borderColor: c, backgroundColor: c}; },
+          label: ctx => 'Điểm ' + fmtSigned(hist.score[ctx.dataIndex]) + ' — ' + NAMES[String(hist.state[ctx.dataIndex])]
+        }}}
+    }
+  });
+  linkCharts(charts.price, charts.score);
 
   charts.equity = new Chart($('equity-chart'), {
     type: 'line',
