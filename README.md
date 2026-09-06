@@ -15,7 +15,7 @@ Mỗi ngày (sau khi nến ngày UTC đóng) mô hình xếp Bitcoin vào 1 tron
 
 Trang web hiển thị: trạng thái đã chốt và **xem trước intraday** (nến hôm nay chưa đóng),
 phân bổ đề xuất, điểm số **5 thành phần** (dài / trung / ngắn hạn, on-chain MVRV, vĩ mô USD),
-biểu đồ giá tô màu theo trạng thái (1/2/4 năm), backtest so với buy & hold kèm drawdown,
+biểu đồ giá tô màu theo trạng thái và điểm rủi ro −3→+3 (1/2/4 năm hoặc toàn bộ từ 2016), backtest so với buy & hold kèm drawdown,
 lợi nhuận theo năm, thống kê hành vi trạng thái, công cụ **so sánh tham số**, lịch sử điểm
 đảo chiều, xuất CSV, giao diện sáng/tối.
 
@@ -56,9 +56,9 @@ Test dùng chuỗi giá random walk trong bộ nhớ và mock lớp dữ liệu,
 |---|---|
 | `GET /` | Trang web (index.html) |
 | `GET /api/read` | Trạng thái, điểm số, backtest, intraday, meta (không kèm history) |
-| `GET /api/history` | Lịch sử 4 năm (dates, close, state, score, equity, drawdown) |
+| `GET /api/history` | Lịch sử từ 2016 (dates, close, state, score, equity, drawdown) |
 | `GET /api/full` | Tất cả |
-| `GET /api/history.csv` | Lịch sử 4 năm dạng CSV để tải về |
+| `GET /api/history.csv` | Lịch sử từ 2016 dạng CSV để tải về |
 | `GET /api/backtest?smooth_days=7&confirm_days=2&buffer=0.4&...` | Chạy lại backtest với tham số khác (xem `PARAM_BOUNDS` trong `app/model.py`) |
 | `GET /health` | `{ok, cached, age_seconds, refreshing, error}` — trả 503 khi dữ liệu cũ quá 24 giờ hoặc chưa từng tính được |
 

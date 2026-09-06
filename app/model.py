@@ -58,7 +58,8 @@ PARAM_BOUNDS = {
 
 SCORE_SCALE = 3.0     # điểm tổng nằm trong [-3, +3]
 ALLOC = {2: 1.00, 1: 0.60, -1: 0.25, -2: 0.00}   # phân bổ BTC theo trạng thái
-HISTORY_YEARS = 4     # số năm lịch sử trả về cho frontend
+HISTORY_START = "2016-01-01"   # lịch sử trả về cho frontend bắt đầu từ ngày này
+                               # (features cần ~1 năm khởi động nên thực tế từ cuối 01/2016)
 N_INFLECTIONS = 15    # số điểm đảo chiều Risk-On/Off gần nhất
 
 STATE_INFO = {
@@ -355,8 +356,9 @@ def compute(close: Optional[pd.Series] = None, extras: Optional[dict] = None,
             "price": round(float(feats.loc[ts, "close"]), 2),
         })
 
-    # Lịch sử 4 năm gần nhất, equity chuẩn hoá về 1 tại đầu kỳ
-    cutoff = feats.index[-1] - pd.DateOffset(years=HISTORY_YEARS)
+    # Lịch sử dài hạn từ HISTORY_START (hoặc từ ngày đầu có features nếu chuỗi ngắn hơn),
+    # equity chuẩn hoá về 1 tại đầu kỳ
+    cutoff = max(pd.Timestamp(HISTORY_START), feats.index[0])
     hist_idx = feats.index[feats.index >= cutoff]
     eq_s = bt["_equity_strat"].loc[hist_idx]
     eq_h = bt["_equity_hold"].loc[hist_idx]

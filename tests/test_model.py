@@ -225,6 +225,16 @@ def test_intraday_split(close):
     assert result["history"]["dates"][-1] == result["as_of"]
 
 
+def test_history_is_long_term(close):
+    """Lịch sử trả về bắt đầu từ HISTORY_START (không còn bị cắt 4 năm)."""
+    result = model.compute(close)
+    dates = result["history"]["dates"]
+    assert dates[0] >= model.HISTORY_START
+    assert dates[0] < "2017-01-01"          # fixture có dữ liệu từ 2015 nên phải bắt đầu trong 2016
+    span_days = (pd.Timestamp(dates[-1]) - pd.Timestamp(dates[0])).days
+    assert span_days > 4 * 365
+
+
 def test_equity_starts_at_one(close):
     result = model.compute(close)
     hist = result["history"]

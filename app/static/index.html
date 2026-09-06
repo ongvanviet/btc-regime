@@ -240,10 +240,12 @@
         <div class="seg" role="group" aria-label="Khung thời gian">
           <button class="btn small range" data-years="1" type="button">1 năm</button>
           <button class="btn small range" data-years="2" type="button">2 năm</button>
-          <button class="btn small range active" data-years="4" type="button">4 năm</button>
+          <button class="btn small range" data-years="4" type="button">4 năm</button>
+          <button class="btn small range active" data-years="0" type="button">Toàn bộ</button>
         </div>
       </div>
-      <p class="note">Trục giá log. Mỗi đoạn đường mang màu của trạng thái ngày hôm đó.</p>
+      <p class="note">Trục giá log. Mỗi đoạn đường mang màu của trạng thái ngày hôm đó.
+        "Toàn bộ" hiển thị từ đầu 2016 (năm 2015 dùng để khởi động các chỉ báo).</p>
       <div class="chartbox"><canvas id="price-chart"></canvas></div>
       <p class="note" style="margin-top:1rem">Điểm rủi ro tổng hợp (−3 → +3) cùng khung thời gian, đồng bộ con trỏ với
         chart giá. Nền màu là miền trạng thái theo ngưỡng Strong/Mild hiện hành, đường nét đứt là ngưỡng,
@@ -352,7 +354,7 @@
          <a href="https://x.com/ongvan_viet" target="_blank" rel="noopener">https://x.com/ongvan_viet</a></p>
       <div class="actions">
         <button id="reload" class="btn primary" type="button">Tải lại dữ liệu</button>
-        <a class="btn" href="/api/history.csv" download="riskonbtc_history.csv">Tải CSV lịch sử 4 năm</a>
+        <a class="btn" href="/api/history.csv" download="riskonbtc_history.csv">Tải CSV lịch sử từ 2016</a>
         <a class="btn" href="/api/read" target="_blank" rel="noopener">API JSON</a>
       </div>
     </footer>
@@ -373,7 +375,7 @@ const statusEl = document.getElementById('status');
 const content  = document.getElementById('content');
 let charts = {};
 let DATA = null;
-let rangeYears = 4;
+let rangeYears = 0;   // 0 = toàn bộ lịch sử
 
 const fmtUSD = v => v.toLocaleString('vi-VN', {maximumFractionDigits:0}) + ' USD';
 const fmtPct = v => (v*100).toFixed(1).replace('.', ',') + '%';
@@ -578,11 +580,14 @@ function chartFallback(canvasId, msg){
 }
 function sliceHist(hist, years){
   const n = hist.dates.length;
-  const last = new Date(hist.dates[n-1]);
-  const cutoff = new Date(last); cutoff.setFullYear(cutoff.getFullYear() - years);
-  const cstr = cutoff.toISOString().slice(0,10);
-  let i0 = hist.dates.findIndex(d => d >= cstr);
-  if (i0 < 0) i0 = 0;
+  let i0 = 0;
+  if (years > 0){   // years = 0 nghĩa là lấy toàn bộ lịch sử
+    const last = new Date(hist.dates[n-1]);
+    const cutoff = new Date(last); cutoff.setFullYear(cutoff.getFullYear() - years);
+    const cstr = cutoff.toISOString().slice(0,10);
+    i0 = hist.dates.findIndex(d => d >= cstr);
+    if (i0 < 0) i0 = 0;
+  }
   const out = {};
   for (const k of Object.keys(hist)) out[k] = hist[k].slice(i0);
   // chuẩn hoá lại equity về 1 và tính lại drawdown trong khung
@@ -676,12 +681,22 @@ function drawCharts(){
   const hist = sliceHist(DATA.history, rangeYears);
   const ink = cssVar('--ink'), muted = cssVar('--muted'), grid = cssVar('--grid'), hold = cssVar('--hold');
   const panel = cssVar('--panel');
+  // Trục thời gian: khung dài (toàn bộ hoặc >= 4 năm) chỉ ghi nhãn năm tại ngày đầu mỗi năm;
+  // khung ngắn giữ nhãn ngày đầy đủ và để Chart.js tự thưa bớt.
+  const longRange = rangeYears === 0 || rangeYears >= 4;
+  const xTicks = longRange
+    ? {color: muted, autoSkip: false, maxRotation: 0,
+       callback: (v, i) => {
+         const d = hist.dates[i], prev = hist.dates[i - 1];
+         return (i > 0 && d.slice(0, 4) !== prev.slice(0, 4)) ? d.slice(0, 4) : null;
+       }}
+    : {maxTicksLimit: 8, color: muted};
   const common = {
     responsive: true, maintainAspectRatio: false, animation: false,
     interaction: {mode: 'index', intersect: false},
     plugins: {tooltip: {backgroundColor: panel, titleColor: ink, bodyColor: ink, borderColor: grid, borderWidth: 1}},
     scales: {
-      x: {ticks: {maxTicksLimit: 8, color: muted}, grid: {color: grid}},
+      x: {ticks: xTicks, grid: {color: grid}},
       y: {type: 'logarithmic', ticks: {color: muted}, grid: {color: grid}}
     }
   };
